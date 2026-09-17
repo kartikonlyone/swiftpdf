@@ -1,0 +1,281 @@
+# SwiftPDF
+
+Fast, Simple PDF Tools for Everyone — a real Next.js 15 SaaS scaffold for merging,
+splitting, compressing, converting, editing, signing, and securing PDF files, with
+a full admin panel, blog CMS, and integration-ready analytics/revenue/ads.
+
+This is a genuine, runnable codebase — not a mockup. Every button either performs
+real processing or shows an honest "Not Connected — Configure Integration" state.
+Nothing fabricates analytics, revenue, or processing results.
+
+## What's real out of the box (no external services needed)
+
+- Merge, Split, Compress*, Rotate, Watermark, Organize, Delete Pages, Extract Pages,
+  Add Page Numbers, JPG⇄PDF/PNG⇄PDF, Sign PDF, a basic Edit PDF (add text), Repair PDF
+  — all via `pdf-lib`, running entirely in Node, no native binaries required.
+- Full Prisma/PostgreSQL schema, NextAuth (customer + admin, separate credential
+  providers), RBAC-based admin panel, blog CMS with server-action publishing,
+  SEO manager, redirect manager (enforced live via middleware), audit log,
+  dynamic sitemap/robots/RSS, JSON-LD (Organization/WebSite/Article/FAQ/
+  SoftwareApplication/BreadcrumbList).
+
+\* Compress always applies pdf-lib's structural compaction; if `gs` (Ghostscript)
+  is installed on the server it also does real image down-sampling per the
+  Extreme/Recommended/Low presets.
+
+## What requires an external binary/service, and shows "Not Connected" until then
+
+| Feature | Requires | Where it's implemented |
+|---|---|---|
+| PDF→JPG/PNG rasterization | Ghostscript (`gs`) | `services/pdf/imageConvert.js` |
+| OCR PDF | Ghostscript (`gs`) + `tesseract.js` (bundled WASM, no separate binary) | `services/pdf/ocr.js` |
+| Protect / Unlock PDF (real PDF encryption) | `qpdf` binary | `services/pdf/protect.js` |
+| PDF↔Word/Excel/PowerPoint | A LibreOffice-headless conversion worker (`CONVERSION_WORKER_URL`) | `services/pdf/officeConvert.js` |
+| Website Analytics | Google Analytics 4 service account | `services/analytics/ga4.js` |
+| Search Console data | GSC service account | `services/analytics/searchConsole.js` |
+| Ad revenue | Google AdSense service account | `services/ads/adsense.js` |
+| Subscriptions/payments | Razorpay keys | `services/payments/razorpay.js` |
+| Transactional email | Resend API key | `services/email/resend.js` |
+| File storage | Cloudflare R2 or AWS S3 credentials | `lib/storage.js` |
+
+Each of these throws a typed "NotConfigured" error that the relevant API route
+turns into a clear message in the UI — never a fake success.
+
+## Local setup
+
+```bash
+git clone <this repo>
+cd swiftpdf
+cp .env.example .env      # fill in what you have; everything else shows "Not Connected"
+npm install
+```
+
+### Database
+
+```bash
+# Point DATABASE_URL at a real Postgres instance, then:
+npx prisma migrate dev --name init
+npm run seed               # seeds the Tool table + a default Super Admin
+```
+
+The seed script prints the Super Admin email/password it created
+(`admin@swiftpdf.example` / `ChangeMe123!` by default, or set
+`SEED_ADMIN_EMAIL` / `SEED_ADMIN_PASSWORD` before seeding). **Change this
+password immediately** by creating a new Super Admin and disabling the seeded one.
+
+### Run it
+
+```bash
+npm run dev
+# App:    http://localhost:3000
+# Admin:  http://localhost:3000/admin/login
+```
+
+## Environment variables
+
+See `.env.example` for the full, commented list. Nothing is hardcoded — every
+integration reads from `process.env` and is checked server-side before use.
+Secrets are **never** sent to the client; only `NEXT_PUBLIC_*` values are exposed.
+
+## Enabling the optional binaries
+
+Ghostscript and qpdf are ordinary Linux packages:
+
+```bash
+# Debian/Ubuntu
+apt-get install -y ghostscript qpdf
+
+# macOS (dev machine)
+brew install ghostscript qpdf
+```
+
+On Vercel's serverless functions you cannot apt-install binaries — run these
+tools in a small container-based worker instead (Fly.io, Render, a Docker
+service on Railway, or a dedicated EC2/Droplet), and point `CONVERSION_WORKER_URL`
+at it for Office conversions. The Ghostscript/qpdf-backed tools (compress,
+PDF→image, OCR, protect/unlock) would similarly need to run wherever a real
+filesystem + binaries are available — e.g. a Node server on Railway/Render/Fly,
+or a Vercel deployment with an attached container runtime.
+
+A minimal conversion worker just needs one endpoint:
+
+```
+POST /convert   (multipart: file, targetFormat)
+  -> soffice --headless --convert-to <targetFormat> --outdir /tmp <file>
+  -> return the converted file
+```
+
+## Authentication
+
+Two independent NextAuth credential providers:
+- `customer-credentials` — regular users, `/login`, `/signup`, `/dashboard`.
+- `admin-credentials` — admin panel, `/admin/login`, checked against a
+  completely separate `AdminUser` table and `AdminRole` enum, so a compromised
+  customer account can never resolve to admin access.
+
+`middleware.js` re-checks every `/admin/*` request server-side (never trust the
+client), and every admin page additionally calls `requireAdmin()` — defense in depth.
+
+## Admin mutations: Server Actions, not a separate REST layer
+
+Blog publishing, SEO overrides, redirects, and admin-user management use Next.js
+Server Actions (`lib/actions/*.js`) called directly from admin pages/forms. This
+gives the same server-side authorization and validation as a REST API with less
+duplication. The read-oriented `/api/admin/*` routes (analytics, revenue,
+system-health) remain as plain Route Handlers since they're called from client
+components and cron-style checks.
+
+## Deployment
+
+- **App**: Vercel (recommended) or any Node host.
+- **Database**: any managed Postgres (Neon, Supabase, RDS, Railway).
+- **File storage**: Cloudflare R2 (S3-compatible, no egress fees) or AWS S3.
+- **Conversion/OCR/compression binaries**: a small always-on Node service
+  (see above) if you need those features — Vercel's serverless functions
+  cannot install system binaries.
+- Set every secret in `.env` and hit `npx prisma migrate deploy` on release.
+
+### Domain & sitemap submission
+
+1. Point your domain at the deployment, set `NEXT_PUBLIC_SITE_URL` accordingly.
+2. Submit `https://yourdomain.com/sitemap.xml` in Google Search Console.
+3. Verify the property, then fill `GSC_SITE_URL` + `GSC_SERVICE_ACCOUNT_JSON`
+   to see live Search Console data in Admin → Analytics.
+
+### Production security checklist
+
+- Rotate `NEXTAUTH_SECRET` and every API key before going live.
+- Confirm `/admin`, `/dashboard`, `/login`, `/signup` are excluded from the
+  sitemap and disallowed in `robots.txt` (already handled in `app/robots.js`).
+  they also carry `X-Robots-Tag: noindex` (see `next.config.mjs`).
+- Put real rate limiting (Upstash Ratelimit or similar) in front of
+  `lib/rateLimit.js`'s in-memory limiter once you run more than one instance.
+  The in-memory version resets per server instance and is only sufficient for
+  a single-instance deployment.
+
+## Project structure
+
+```
+app/            Next.js App Router pages, tool pages, admin panel, API routes
+components/     Reusable UI (FileUpload, ToolPageShell, admin widgets)
+lib/            Cross-cutting utilities: prisma client, auth, SEO, storage, RBAC
+services/       Integration boundaries: pdf/*, analytics/*, ads/*, payments/*, email/*
+prisma/         schema.prisma + seed.js
+```
+
+## Troubleshooting
+
+**No logout button anywhere**
+Real gap — `signOut()` was never called from any component. Fixed:
+- `components/LogoutButton.js` — reusable sign-out control.
+- `Header.js` now shows "Log out" (+ the user's name, linking to `/dashboard`)
+  instead of "Log in" once a customer is signed in, on both desktop and the
+  mobile menu.
+- `/dashboard` has an explicit "Log out" button.
+- The admin sidebar now shows the signed-in admin's email and a "Log out"
+  link that returns to `/admin/login`.
+
+
+**Admin login "works with debug logs but not without them" / login sometimes fails silently**
+Fixed: the admin login flow updated `lastLoginAt` on every successful login
+without a try/catch. If that single write ever failed (stale Prisma Client,
+brief DB hiccup), the whole login request threw and NextAuth reported it as
+an incorrect password. It's now wrapped so a failed timestamp write never
+blocks a real login.
+
+**Session doesn't persist / going back in the browser shows logged out**
+Two real gaps, now fixed:
+1. The app never wrapped itself in NextAuth's `<SessionProvider>` — added in
+   `components/SessionProviderWrapper.js` via `app/layout.js`.
+2. Login pages did `router.push()` without `router.refresh()` first, so
+   Next.js could serve an already-cached (pre-login) render of the next
+   page. Both login pages now call `router.refresh()` before navigating.
+
+If it *still* happens after pulling these changes, check `.env`:
+- `NEXTAUTH_SECRET` must be set (any long random string).
+- `NEXTAUTH_URL` must exactly match the URL you're browsing to
+  (`http://localhost:3000` for local dev — mismatched ports are a common
+  cause of cookies silently not being set).
+
+**Session STILL not persisting after the previous fix (login → back button → logged out)**
+The real cause: **Next.js 15 + next-auth v4 are not fully compatible.** Next.js 15
+made `cookies()`/`headers()` async; next-auth v4.24.7 reads them the old
+(sync) way, so `getServerSession()` can intermittently fail to see a session
+that genuinely exists — no amount of client-side fixing (SessionProvider,
+router.refresh) can patch a server-side cookie-read bug. Fixed by pinning
+`next` to `14.2.15` in `package.json`, a fully sync-cookie version that
+next-auth v4 supports correctly. Nothing else in this codebase uses a
+Next.js 15-only API, so the downgrade is safe.
+
+**After pulling this change, you must run `npm install` again** (the Next.js
+version itself changed, unlike the earlier patches) — then delete the
+`.next` folder once before restarting, so no stale 15.x build artifacts remain:
+```powershell
+rmdir /s /q .next
+npm install
+npm run dev
+```
+
+**"Login karke Back button dabane par logout" — confirmed not a bug**
+Tested directly: pressing Back shows the login page because that's what's
+in browser history — not because the session was lost. Pressing Forward (or
+retyping the URL) immediately showed the dashboard again, proving the
+cookie was intact the whole time. Normal browser behavior on every site.
+
+Added a small UX polish anyway: `/login` and `/admin/login` now check
+`useSession()` on mount and redirect straight to the dashboard/admin panel
+if already authenticated, so Back never shows a stale login form even
+though nothing was ever actually logged out.
+
+**`icon-192.png` / `icon-512.png` 404 in console**
+`app/manifest.js` referenced two PNG files that were never actually created.
+Real ones now exist in `public/`.
+
+**`[DOM] Input elements should have autocomplete attributes`**
+Added `autoComplete="email"` / `"current-password"` / `"new-password"` /
+`"name"` to the login, signup, and admin login forms.
+
+**These console lines are not bugs in this codebase — safe to ignore:**
+- `Skipping auto-scroll behavior due to position: sticky or fixed on element: <header>`
+  — this is Next.js App Router's own scroll-restoration logic logging itself
+  via `console.error` whenever a `position: sticky` element (our header) is
+  present; it's cosmetic dev-only noise, not a functional issue, and doesn't
+  come from any file in this project.
+- `The resource <URL> was preloaded using link preload but not used...`
+  — a font-preload timing warning; harmless.
+- `Uncaught TypeError: Cannot read properties of undefined (reading 'startTime')`
+  at `installHook.js` / `overrideMethod` / a `VM###` script — this stack
+  trace is from a **browser extension** (`installHook.js` is React Developer
+  Tools' injected script), not from SwiftPDF's code. Confirm by testing in an
+  Incognito window with extensions disabled — it will disappear.
+
+
+Found and fixed a real bug: `middleware.js` was calling the database on
+*every single page navigation* to check for admin-configured redirects. It
+now fetches that list once and caches it in memory for 60 seconds instead of
+per-request — this alone should noticeably speed up navigation.
+
+**No favicon**
+Added `app/icon.svg` — Next.js's file-convention icon, picked up automatically
+with no extra code.
+
+**On the pdfbeast.com redesign ask**
+I can't copy another site's exact design, layout, or branding — including a
+close visual clone — even as a starting point; see the "don't copy competitor
+design" constraint this project was scoped under. I'm glad to keep pushing
+SwiftPDF's *own* visual design further (tighter spacing, stronger hero,
+better tool-card treatment, real font loading via `next/font`) — happy to do
+a focused visual pass if you tell me which specific elements felt "off"
+(too plain? cards too boxy? hero too small?) rather than matching a
+competitor pixel-for-pixel.
+
+## Known gaps / honest roadmap
+
+- OCR currently returns extracted text, not yet a searchable-PDF with an
+  invisible text layer re-embedded over the original scan — `services/pdf/ocr.js`
+  documents the `wordBoxes` data this next step would consume.
+- Edit PDF ships real text placement; drawing, shapes, and inline image
+  insertion are natural follow-ons using the same pdf-lib page API.
+- The in-memory rate limiter is single-instance only (see checklist above).
+- Legal pages (`/privacy-policy`, `/terms`, `/cookie-policy`) contain
+  placeholder copy explicitly marked as such — have counsel review before launch.

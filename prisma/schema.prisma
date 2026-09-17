@@ -1,0 +1,382 @@
+// SwiftPDF — Prisma schema
+// Run: npx prisma migrate dev --name init
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ---------------------------------------------------------------------------
+// AUTH / USERS
+// ---------------------------------------------------------------------------
+
+enum UserPlan {
+  FREE
+  PRO
+  BUSINESS
+}
+
+model User {
+  id            String    @id @default(cuid())
+  name          String?
+  email         String    @unique
+  emailVerified DateTime?
+  passwordHash  String?
+  image         String?
+  plan          UserPlan  @default(FREE)
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  accounts      Account[]
+  sessions      Session[]
+  files         FileJob[]
+  subscriptions Subscription[]
+  toolUsages    ToolUsage[]
+
+  @@index([email])
+}
+
+model Account {
+  id                String  @id @default(cuid())
+  userId            String
+  type              String
+  provider          String
+  providerAccountId String
+  refresh_token     String? @db.Text
+  access_token      String? @db.Text
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String? @db.Text
+  session_state     String?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+}
+
+model Session {
+  id           String   @id @default(cuid())
+  sessionToken String   @unique
+  userId       String
+  expires      DateTime
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model VerificationToken {
+  identifier String
+  token      String   @unique
+  expires    DateTime
+
+  @@unique([identifier, token])
+}
+
+// ---------------------------------------------------------------------------
+// ADMIN RBAC
+// ---------------------------------------------------------------------------
+
+enum AdminRole {
+  SUPER_ADMIN
+  EDITOR
+  SEO_MANAGER
+  ANALYTICS_VIEWER
+}
+
+model AdminUser {
+  id           String    @id @default(cuid())
+  name         String
+  email        String    @unique
+  passwordHash String
+  role         AdminRole @default(EDITOR)
+  isActive     Boolean   @default(true)
+  lastLoginAt  DateTime?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  posts     BlogPost[]
+  auditLogs AuditLog[]
+
+  @@index([email])
+}
+
+// ---------------------------------------------------------------------------
+// BLOG / CMS
+// ---------------------------------------------------------------------------
+
+enum PostStatus {
+  DRAFT
+  SCHEDULED
+  PUBLISHED
+  ARCHIVED
+  TRASH
+}
+
+model BlogPost {
+  id              String     @id @default(cuid())
+  title           String
+  slug            String     @unique
+  excerpt         String?
+  content         String     @db.Text
+  featuredImageId String?
+  featuredImage   Media?     @relation(fields: [featuredImageId], references: [id])
+  authorId        String
+  author          AdminUser  @relation(fields: [authorId], references: [id])
+  categoryId      String?
+  category        BlogCategory? @relation(fields: [categoryId], references: [id])
+  tags            BlogPostTag[]
+
+  seoTitle        String?
+  seoDescription  String?
+  canonicalUrl    String?
+  ogTitle         String?
+  ogDescription   String?
+  ogImageId       String?
+
+  status          PostStatus @default(DRAFT)
+  publishedAt     DateTime?
+  scheduledFor    DateTime?
+  createdAt       DateTime   @default(now())
+  updatedAt       DateTime   @updatedAt
+
+  @@index([status, publishedAt])
+  @@index([slug])
+}
+
+model BlogCategory {
+  id    String @id @default(cuid())
+  name  String @unique
+  slug  String @unique
+  posts BlogPost[]
+}
+
+model BlogTag {
+  id    String @id @default(cuid())
+  name  String @unique
+  slug  String @unique
+  posts BlogPostTag[]
+}
+
+model BlogPostTag {
+  postId String
+  tagId  String
+  post   BlogPost @relation(fields: [postId], references: [id], onDelete: Cascade)
+  tag    BlogTag  @relation(fields: [tagId], references: [id], onDelete: Cascade)
+
+  @@id([postId, tagId])
+}
+
+model Media {
+  id         String     @id @default(cuid())
+  filename   String
+  storageKey String     @unique
+  url        String
+  mimeType   String
+  width      Int?
+  height     Int?
+  sizeBytes  Int
+  altText    String?
+  caption    String?
+  uploadedAt DateTime   @default(now())
+  posts      BlogPost[]
+}
+
+// ---------------------------------------------------------------------------
+// PDF TOOLS
+// ---------------------------------------------------------------------------
+
+enum ToolStatus {
+  ENABLED
+  DISABLED
+}
+
+model Tool {
+  id          String     @id @default(cuid())
+  key         String     @unique // e.g. "merge-pdf"
+  name        String
+  path        String     @unique // e.g. "/merge-pdf"
+  description String?
+  status      ToolStatus @default(ENABLED)
+  seoTitle       String?
+  seoDescription String?
+  faq            Json?     // [{question, answer}]
+  relatedTools   Json?     // [toolKey, ...]
+  createdAt   DateTime   @default(now())
+  updatedAt   DateTime   @updatedAt
+
+  usages ToolUsage[]
+}
+
+enum JobStatus {
+  PENDING
+  PROCESSING
+  COMPLETED
+  FAILED
+}
+
+model FileJob {
+  id            String    @id @default(cuid())
+  userId        String?
+  user          User?     @relation(fields: [userId], references: [id])
+  toolKey       String
+  status        JobStatus @default(PENDING)
+  inputKeys     Json      // array of storage keys
+  outputKey     String?
+  originalSizeBytes  Int?
+  outputSizeBytes    Int?
+  errorMessage  String?
+  expiresAt     DateTime?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  @@index([userId])
+  @@index([status])
+}
+
+model ToolUsage {
+  id          String   @id @default(cuid())
+  toolId      String
+  tool        Tool     @relation(fields: [toolId], references: [id])
+  userId      String?
+  user        User?    @relation(fields: [userId], references: [id])
+  succeeded   Boolean
+  durationMs  Int?
+  createdAt   DateTime @default(now())
+
+  @@index([toolId, createdAt])
+}
+
+// ---------------------------------------------------------------------------
+// ANALYTICS (first-party events; GA4/GSC are pulled live via API, not stored)
+// ---------------------------------------------------------------------------
+
+model AnalyticsEvent {
+  id        String   @id @default(cuid())
+  name      String   // page_view | tool_opened | file_uploaded | ...
+  path      String?
+  userId    String?
+  metadata  Json?
+  createdAt DateTime @default(now())
+
+  @@index([name, createdAt])
+  @@index([path])
+}
+
+// ---------------------------------------------------------------------------
+// SUBSCRIPTIONS / PAYMENTS / REVENUE
+// ---------------------------------------------------------------------------
+
+enum SubscriptionStatus {
+  ACTIVE
+  PAST_DUE
+  CANCELLED
+  EXPIRED
+}
+
+model Subscription {
+  id                  String             @id @default(cuid())
+  userId              String
+  user                User               @relation(fields: [userId], references: [id])
+  plan                UserPlan
+  status              SubscriptionStatus @default(ACTIVE)
+  razorpaySubId       String?            @unique
+  currentPeriodStart  DateTime
+  currentPeriodEnd    DateTime
+  cancelAtPeriodEnd   Boolean            @default(false)
+  createdAt           DateTime           @default(now())
+  updatedAt           DateTime           @updatedAt
+
+  payments Payment[]
+
+  @@index([userId])
+}
+
+enum PaymentStatus {
+  CREATED
+  AUTHORIZED
+  CAPTURED
+  FAILED
+  REFUNDED
+}
+
+model Payment {
+  id               String        @id @default(cuid())
+  subscriptionId   String?
+  subscription     Subscription? @relation(fields: [subscriptionId], references: [id])
+  razorpayOrderId  String?
+  razorpayPaymentId String?      @unique
+  amountPaise      Int
+  currency         String        @default("INR")
+  status           PaymentStatus @default(CREATED)
+  createdAt        DateTime      @default(now())
+
+  @@index([subscriptionId])
+}
+
+model RevenueRecord {
+  id        String   @id @default(cuid())
+  source    String   // "subscription" | "advertising" | "other"
+  amountPaise Int
+  currency  String   @default("INR")
+  occurredAt DateTime
+  createdAt DateTime @default(now())
+
+  @@index([source, occurredAt])
+}
+
+// ---------------------------------------------------------------------------
+// SEO / REDIRECTS / SETTINGS
+// ---------------------------------------------------------------------------
+
+model SEOSetting {
+  id             String   @id @default(cuid())
+  path           String   @unique // "/", "/merge-pdf", etc.
+  title          String?
+  description    String?
+  canonical      String?
+  robots         String?  @default("index,follow")
+  ogTitle        String?
+  ogDescription  String?
+  ogImageUrl     String?
+  updatedAt      DateTime @updatedAt
+}
+
+enum RedirectType {
+  PERMANENT
+  TEMPORARY
+}
+
+model Redirect {
+  id        String       @id @default(cuid())
+  fromPath  String       @unique
+  toPath    String
+  type      RedirectType @default(PERMANENT)
+  isActive  Boolean      @default(true)
+  createdAt DateTime     @default(now())
+}
+
+model SiteSetting {
+  id    String @id @default("singleton")
+  key   String @unique
+  value Json
+}
+
+// ---------------------------------------------------------------------------
+// AUDIT LOG
+// ---------------------------------------------------------------------------
+
+model AuditLog {
+  id          String    @id @default(cuid())
+  adminId     String?
+  admin       AdminUser? @relation(fields: [adminId], references: [id])
+  action      String    // "blog.published", "seo.updated", ...
+  resource    String?   // e.g. "BlogPost:abc123"
+  result      String    @default("success") // success | failure
+  metadata    Json?
+  createdAt   DateTime  @default(now())
+
+  @@index([action, createdAt])
+}

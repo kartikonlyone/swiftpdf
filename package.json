@@ -1,0 +1,50 @@
+{
+  "name": "swiftpdf",
+  "version": "1.0.0",
+  "private": true,
+  "description": "SwiftPDF — Fast, Simple PDF Tools for Everyone.",
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "lint": "next lint",
+    "prisma:generate": "prisma generate",
+    "prisma:migrate": "prisma migrate dev",
+    "prisma:deploy": "prisma migrate deploy",
+    "prisma:studio": "prisma studio",
+    "seed": "node prisma/seed.js"
+  },
+  "dependencies": {
+    "next": "14.2.15",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "next-auth": "^4.24.7",
+    "@auth/prisma-adapter": "^2.4.2",
+    "@prisma/client": "^5.20.0",
+    "bcryptjs": "^2.4.3",
+    "pdf-lib": "^1.17.1",
+    "sharp": "^0.33.5",
+    "@aws-sdk/client-s3": "^3.658.1",
+    "@aws-sdk/s3-request-presigner": "^3.658.1",
+    "resend": "^4.0.0",
+    "razorpay": "^2.9.4",
+    "zod": "^3.23.8",
+    "nanoid": "^5.0.7",
+    "date-fns": "^3.6.0",
+    "jszip": "^3.10.1",
+    "jsonwebtoken": "^9.0.2",
+    "tesseract.js": "^5.1.1"
+  },
+  "devDependencies": {
+    "prisma": "^5.20.0",
+    "tailwindcss": "^3.4.13",
+    "postcss": "^8.4.47",
+    "autoprefixer": "^10.4.20",
+    "eslint": "^8.57.1",
+    "eslint-config-next": "14.2.15",
+    "@tailwindcss/typography": "^0.5.15"
+  },
+  "engines": {
+    "node": ">=18.18.0"
+  }
+}
