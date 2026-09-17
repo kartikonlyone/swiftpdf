@@ -4,6 +4,9 @@ import { buildMetadata, organizationJsonLd, websiteJsonLd } from "@/lib/seo";
 import SeoJsonLd from "@/components/SeoJsonLd";
 import SessionProviderWrapper from "@/components/SessionProviderWrapper";
 
+// Force dynamic rendering to bypass build-time pre-rendering issues with NextAuth
+export const dynamic = 'force-dynamic';
+
 // Real font loading — previously globals.css referenced --font-display /
 // --font-body as CSS variables but nothing ever set them, so every page was
 // silently rendering in the browser's default system font. next/font
