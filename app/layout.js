@@ -4,6 +4,8 @@ import { buildMetadata, organizationJsonLd, websiteJsonLd } from "@/lib/seo";
 import SeoJsonLd from "@/components/SeoJsonLd";
 import SessionProviderWrapper from "@/components/SessionProviderWrapper";
 
+export const dynamic = 'force-dynamic';
+
 // Real font loading — previously globals.css referenced --font-display /
 // --font-body as CSS variables but nothing ever set them, so every page was
 // silently rendering in the browser's default system font. next/font
@@ -24,12 +26,17 @@ const inter = Inter({
   display: "swap"
 });
 
-export const metadata = buildMetadata({
-  title: "SwiftPDF — Fast, Simple PDF Tools for Everyone",
-  description:
-    "Merge, split, compress, convert, edit, sign and manage PDF files online with SwiftPDF.",
-  path: "/"
-});
+export const metadata = {
+  ...buildMetadata({
+    title: "SwiftPDF — Fast, Simple PDF Tools for Everyone",
+    description:
+      "Merge, split, compress, convert, edit, sign and manage PDF files online with SwiftPDF.",
+    path: "/"
+  }),
+  verification: {
+    google: "google-site-verification=0XB_XVbbIP_WDQaFm2mnKXp-8oJ4YC_gwjcXa7ARRew",
+  },
+};
 
 export default function RootLayout({ children }) {
   return (
