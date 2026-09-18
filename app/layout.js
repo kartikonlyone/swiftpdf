@@ -32,15 +32,15 @@ export const metadata = {
     description:
       "Merge, split, compress, convert, edit, sign and manage PDF files online with SwiftPDF.",
     path: "/"
-  }),
-  verification: {
-    google: "PG8HGjtCKzxAGHBSctLkyyfS47SoOEEmWOTfzvcoyPo",
-  },
+  })
 };
 
 export default function RootLayout({ children }) {
   return (
     <html lang="en" className={`${fraunces.variable} ${inter.variable}`}>
+    <head>
+        <meta name="google-site-verification" content="PG8HGjtCKzxAGHBSctLkyyfS47SoOEEmWOTfzvcoyPo" />
+      </head>
       <body className="font-body antialiased">
         <SeoJsonLd data={[organizationJsonLd(), websiteJsonLd()]} />
         <SessionProviderWrapper>{children}</SessionProviderWrapper>
