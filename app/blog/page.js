@@ -17,7 +17,7 @@ export default async function BlogIndexPage() {
     .findMany({
       where: { status: "PUBLISHED" },
       orderBy: { publishedAt: "desc" },
-      include: { author: true, category: true },
+      include: { author: true, category: true, featuredImage: true },
       take: 20
     })
     .catch(() => []); // Graceful fallback if the DB isn't migrated/seeded yet.
@@ -36,14 +36,26 @@ export default async function BlogIndexPage() {
         ) : (
           <ul className="mt-10 space-y-8">
             {posts.map((post) => (
-              <li key={post.id} className="border-b border-ink/10 pb-8">
-                <Link href={`/blog/${post.slug}`} className="font-display text-xl font-semibold text-ink hover:text-brand">
-                  {post.title}
-                </Link>
-                <p className="mt-1 text-sm text-ink/50">
-                  {post.author?.name} · {post.publishedAt?.toLocaleDateString?.() ?? ""}
-                </p>
+              <li key={post.id} className="flex gap-5 border-b border-ink/10 pb-8">
+                {post.featuredImage && (
+                  <Link href={`/blog/${post.slug}`} className="shrink-0">
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img
+                      src={post.featuredImage.url}
+                      alt={post.featuredImage.altText || post.title}
+                      className="h-24 w-32 rounded-card object-cover"
+                    />
+                  </Link>
+                )}
+                <div>
+                  <Link href={`/blog/${post.slug}`} className="font-display text-xl font-semibold text-ink hover:text-brand">
+                    {post.title}
+                  </Link>
+                  <p className="mt-1 text-sm text-ink/50">
+                    {post.author?.name} · {post.publishedAt?.toLocaleDateString?.() ?? ""}
+                  </p>
                 {post.excerpt && <p className="mt-2 text-ink/70">{post.excerpt}</p>}
+                </div>
               </li>
             ))}
           </ul>

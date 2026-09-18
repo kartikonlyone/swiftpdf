@@ -2,6 +2,7 @@ import { requireAdmin } from "@/lib/adminGuard";
 import { prisma } from "@/lib/prisma";
 import { storageStatus } from "@/lib/storage";
 import NotConnectedCard from "@/components/admin/NotConnectedCard";
+import MediaLibraryUploadSection from "@/components/admin/MediaLibraryUploadSection";
 
 export const dynamic = "force-dynamic";
 
@@ -19,6 +20,8 @@ export default async function AdminMediaPage() {
           <NotConnectedCard title="File Storage" description="Configure Cloudflare R2 or AWS S3 in Settings to enable uploads to the media library." />
         </div>
       )}
+
+      {storage.configured && <MediaLibraryUploadSection />}
 
       {storage.configured && media.length === 0 && (
         <p className="mt-6 text-sm text-ink/50">No media uploaded yet.</p>

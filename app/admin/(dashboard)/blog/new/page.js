@@ -1,15 +1,19 @@
 import { redirect } from "next/navigation";
 import { requireAdmin } from "@/lib/adminGuard";
 import { createBlogPost } from "@/lib/actions/blog";
+import BlogImageTools from "@/components/admin/BlogImageTools";
+import { storageStatus } from "@/lib/storage";
+import NotConnectedCard from "@/components/admin/NotConnectedCard";
 
 export const dynamic = "force-dynamic";
 
 export default async function NewBlogPostPage() {
   await requireAdmin();
+  const storage = storageStatus();
 
   async function handleCreate(formData) {
     "use server";
-    const post = await createBlogPost(formData);
+    await createBlogPost(formData);
     redirect(`/admin/blog`);
   }
 
@@ -25,6 +29,13 @@ export default async function NewBlogPostPage() {
           <label htmlFor="excerpt" className="text-sm font-medium text-ink">Excerpt</label>
           <input id="excerpt" name="excerpt" className="mt-1 w-full rounded-card border border-ink/15 px-3 py-2 text-sm" />
         </div>
+
+        {storage.configured ? (
+          <BlogImageTools contentTextareaId="content" />
+        ) : (
+          <NotConnectedCard title="File Storage" description="Configure Cloudflare R2 or AWS S3 in Settings to upload featured and inline images." />
+        )}
+
         <div>
           <label htmlFor="content" className="text-sm font-medium text-ink">Content (HTML)</label>
           <textarea id="content" name="content" rows={12} className="mt-1 w-full rounded-card border border-ink/15 px-3 py-2 font-mono text-sm" />

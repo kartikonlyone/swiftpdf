@@ -163,7 +163,127 @@ services/       Integration boundaries: pdf/*, analytics/*, ads/*, payments/*, e
 prisma/         schema.prisma + seed.js
 ```
 
+## Setting up Google Analytics & Search Console
+
+These are two separate things — a tracking script (so GA4 collects data at
+all) and a reporting connection (so the Admin dashboard can display that
+data). Both are already wired into the code; you only need to do the
+external Google-side steps and paste the resulting values into `.env`.
+
+### Google Analytics 4 (visitor tracking)
+1. Go to [analytics.google.com](https://analytics.google.com) → Admin →
+   create a GA4 property for your site.
+2. Under **Data Streams**, add a Web stream with your live URL. Copy the
+   **Measurement ID** (looks like `G-XXXXXXXXXX`).
+3. In Vercel → Settings → Environment Variables, set
+   `NEXT_PUBLIC_GA4_MEASUREMENT_ID` to that value (Production + Preview).
+4. Redeploy. `components/GoogleAnalytics.js` picks it up automatically and
+   starts sending pageviews — no other code change needed.
+
+### Google Search Console (indexing & search performance)
+1. Go to [search.google.com/search-console](https://search.google.com/search-console)
+   → Add property → enter your live domain.
+2. Choose the **HTML tag** verification method (not DNS) — it gives you a
+   line like `<meta name="google-site-verification" content="XXXXX" />`.
+3. Copy just the `content="..."` value into Vercel's
+   `NEXT_PUBLIC_GSC_VERIFICATION` env var and redeploy. The tag is now
+   injected automatically via `app/layout.js`'s `metadata.verification`.
+4. Back in Search Console, click **Verify**.
+5. Once verified, submit your sitemap: Search Console → Sitemaps → enter
+   `sitemap.xml` → Submit. (The sitemap itself, `app/sitemap.js`, is already
+   dynamic and includes every tool page, blog post, and static page.)
+
+### Admin dashboard's deeper GA4 / Search Console reports (optional, more setup)
+The tracking script above is enough for Analytics/Search Console themselves
+to show data on Google's own sites. If you also want that data to appear
+inside SwiftPDF's own `/admin/analytics` page, that needs a **service
+account** with API access — a separate, heavier setup:
+1. In [Google Cloud Console](https://console.cloud.google.com), create a
+   project (or use an existing one) and enable the **Google Analytics Data
+   API** and **Search Console API**.
+2. Create a Service Account, generate a JSON key for it.
+3. In GA4 → Admin → Property Access Management, add that service account's
+   email as a Viewer. In Search Console → Settings → Users, add it as a
+   Restricted user.
+4. Paste the entire JSON key (as a single-line string) into
+   `GA4_SERVICE_ACCOUNT_JSON` and `GSC_SERVICE_ACCOUNT_JSON`, and set
+   `GA4_PROPERTY_ID` (numeric, found in GA4 → Admin → Property Details) and
+   `GSC_SITE_URL` (your exact verified property URL).
+This step is optional — skip it if you're happy checking Analytics/Search
+Console on Google's own site and only wanted visitor tracking to work.
+
+## Pre-launch / post-launch checklist
+
+**Before going live:**
+- [ ] Set every env var in `.env.example` that you actually need — at minimum
+      `DATABASE_URL`, `NEXTAUTH_URL` (your real domain), `NEXTAUTH_SECRET` —
+      in Vercel's dashboard, scoped to Production.
+- [ ] Replace the placeholder legal pages (`/privacy-policy`, `/terms`,
+      `/cookie-policy`) with real, counsel-reviewed text — they're explicitly
+      marked as placeholders in the code.
+- [ ] Change the seeded Super Admin password (`npm run seed`'s default) —
+      create a real admin account and disable the seeded one from
+      Admin → Users.
+- [ ] Run `npx prisma migrate deploy` against your production database (not
+      `migrate dev`, which is for local development).
+- [ ] Configure file storage (R2 or S3) if you want the PDF tools, blog
+      images, or media library to actually persist files — without it
+      they'll show "Not Connected."
+- [ ] Point your real domain at the Vercel project (Settings → Domains),
+      and update `NEXT_PUBLIC_SITE_URL` to match exactly (including https).
+- [ ] Test the full signup → login → dashboard flow, and admin login, on
+      the live URL specifically (not just localhost).
+- [ ] Test at least one real PDF tool end-to-end (e.g. Merge) on production.
+- [ ] Check `/sitemap.xml` and `/robots.txt` load correctly on the live domain.
+- [ ] Confirm the canonical URL on a few pages (View Source → search
+      `rel="canonical"`) shows your real domain, not localhost.
+- [ ] If you'll accept real payments, switch Razorpay from test keys to live
+      keys only once you've tested the full checkout flow in test mode.
+
+**Right after going live:**
+- [ ] Submit the sitemap in Search Console (steps above).
+- [ ] Set up GA4 tracking (steps above) so you're not missing early traffic data.
+- [ ] Do a pass through every public page on mobile — real device if possible.
+- [ ] Set up uptime monitoring (even a free tool like UptimeRobot) so you
+      hear about outages before users do.
+- [ ] Keep an eye on Vercel's function logs for the first few days for
+      unexpected errors under real traffic patterns.
+- [ ] Back up your database on a schedule (most managed Postgres providers
+      like Neon/Supabase have this built in — just confirm it's enabled).
+
 ## Troubleshooting
+
+**SEO audit: canonical URL points at localhost:3000 in production**
+Two-part fix, both applied:
+1. Root cause is `NEXT_PUBLIC_SITE_URL` not being set in Vercel — `lib/seo.js`
+   falls back to `localhost:3000` when it's missing. Set it to your real
+   domain (Production + Preview) in Vercel's dashboard.
+2. Added `metadataBase` to `app/layout.js` as a safety net — Next.js
+   resolves every relative metadata URL (canonical, OG images) against it,
+   and silently defaults to `localhost:3000` itself if it's ever missing.
+   Even if the env var is dropped again in the future, this prevents the
+   same class of bug from resurfacing.
+
+**SEO audit: "words from H1 not found in body text"**
+The hero paragraph now echoes the H1's actual words ("PDF tools," "fast,"
+"online") naturally instead of only listing tool names.
+
+**SEO audit: low word count**
+Added a homepage FAQ section (4 real questions, with FAQPage JSON-LD) and a
+short descriptive paragraph above the tools grid — genuine content, not
+keyword-stuffed filler.
+
+**Blog images**
+Already fully wired: `components/admin/BlogImageTools.js` (featured image +
+insert-into-content) → `MediaUploader.js` → `/api/admin/media` →
+`uploadPublicMedia()` in `lib/storage.js`, which re-encodes uploads through
+`sharp` (strips EXIF, converts to WebP, caps dimensions) before storing.
+Needs `STORAGE_PROVIDER`/`STORAGE_BUCKET`/credentials set to actually work —
+shows a clear "Not Connected" state otherwise, same as every other
+integration in this project.
+
+
+
 
 **Vercel build STILL fails at the same spot even with correct env vars set**
 If you've confirmed `DATABASE_URL` is set correctly for Production in Vercel

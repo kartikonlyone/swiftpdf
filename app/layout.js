@@ -1,10 +1,9 @@
 import "./globals.css";
 import { Fraunces, Inter } from "next/font/google";
-import { buildMetadata, organizationJsonLd, websiteJsonLd } from "@/lib/seo";
+import { buildMetadata, organizationJsonLd, websiteJsonLd, SEO_CONSTANTS } from "@/lib/seo";
 import SeoJsonLd from "@/components/SeoJsonLd";
 import SessionProviderWrapper from "@/components/SessionProviderWrapper";
-
-export const dynamic = 'force-dynamic';
+import GoogleAnalytics from "@/components/GoogleAnalytics";
 
 // Real font loading — previously globals.css referenced --font-display /
 // --font-body as CSS variables but nothing ever set them, so every page was
@@ -27,22 +26,32 @@ const inter = Inter({
 });
 
 export const metadata = {
+  // metadataBase fixes exactly the "canonical points at localhost" class of
+  // bug: Next.js resolves every relative URL in metadata (canonical, OG
+  // images, etc.) against this base. Without it explicitly set, Next.js
+  // silently defaults to http://localhost:3000 in production too — which is
+  // the bug your SEO audit caught. The real, root fix is still to set
+  // NEXT_PUBLIC_SITE_URL correctly in Vercel's environment variables; this
+  // is a second safety net so a missing env var can never leak localhost
+  // into production metadata again.
+  metadataBase: new URL(SEO_CONSTANTS.SITE_URL),
   ...buildMetadata({
     title: "SwiftPDF — Fast, Simple PDF Tools for Everyone",
     description:
       "Merge, split, compress, convert, edit, sign and manage PDF files online with SwiftPDF.",
     path: "/"
-  })
+  }),
+  verification: process.env.NEXT_PUBLIC_GSC_VERIFICATION
+    ? { google: process.env.NEXT_PUBLIC_GSC_VERIFICATION }
+    : undefined
 };
 
 export default function RootLayout({ children }) {
   return (
     <html lang="en" className={`${fraunces.variable} ${inter.variable}`}>
-    <head>
-        <meta name="google-site-verification" content="PG8HGjtCKzxAGHBSctLkyyfS47SoOEEmWOTfzvcoyPo" />
-      </head>
       <body className="font-body antialiased">
         <SeoJsonLd data={[organizationJsonLd(), websiteJsonLd()]} />
+        <GoogleAnalytics />
         <SessionProviderWrapper>{children}</SessionProviderWrapper>
       </body>
     </html>

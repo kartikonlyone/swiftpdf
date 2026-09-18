@@ -2,8 +2,10 @@ import Link from "next/link";
 import Header from "@/components/Header";
 import Footer from "@/components/Footer";
 import ToolCard from "@/components/ToolCard";
+import SeoJsonLd from "@/components/SeoJsonLd";
 import { TOOLS } from "@/lib/toolsCatalog";
 import { GROUP_ICONS } from "@/components/icons/ToolIcons";
+import { faqJsonLd } from "@/lib/seo";
 
 const FEATURED_KEYS = [
   "merge-pdf", "split-pdf", "compress-pdf", "pdf-to-word", "word-to-pdf",
@@ -43,6 +45,25 @@ const HOW = [
 
 const TRUST_CHIPS = ["No signup required", "Files auto-deleted", "Works on mobile", "Free to start"];
 
+const HOME_FAQ = [
+  {
+    question: "Is SwiftPDF really free?",
+    answer: "Yes. Every core PDF tool — merge, split, compress, convert, sign, and more — is free to use online, with no account required to get started."
+  },
+  {
+    question: "Do I need to install any software?",
+    answer: "No. SwiftPDF runs entirely in your browser. Upload a file, choose what you want done, and download the result — nothing to install on your computer or phone."
+  },
+  {
+    question: "Are my files safe?",
+    answer: "Uploaded files are processed automatically and deleted afterward, rather than stored indefinitely. See our Security page for the full details on file handling and retention."
+  },
+  {
+    question: "Can I use SwiftPDF on my phone?",
+    answer: "Yes. Every tool page is built mobile-first, so merging, compressing, and converting PDFs works the same on a phone or tablet as it does on desktop."
+  }
+];
+
 export default function HomePage() {
   const featured = TOOLS.filter((t) => FEATURED_KEYS.includes(t.key));
 
@@ -64,8 +85,9 @@ export default function HomePage() {
             </h1>
 
             <p className="animate-fade-up mx-auto mt-5 max-w-xl text-lg text-ink/60" style={{ animationDelay: "120ms" }}>
-              Merge, split, compress, convert, edit, sign and manage PDF files —
-              no installs, no account required to get started.
+              SwiftPDF is a fast, free set of online PDF tools — merge, split, compress,
+              convert, edit, sign and manage PDF files in your browser. No installs,
+              no account required to get started.
             </p>
 
             <div className="animate-fade-up mt-8 flex flex-wrap items-center justify-center gap-3" style={{ animationDelay: "180ms" }}>
@@ -97,6 +119,11 @@ export default function HomePage() {
               <h2 id="popular-tools" className="mt-1 font-display text-2xl font-semibold text-ink md:text-3xl">
                 Popular PDF tools
               </h2>
+              <p className="mt-2 max-w-xl text-sm text-ink/55">
+                Whether you need to merge a few reports, compress a scan before emailing it,
+                or convert a contract to Word, SwiftPDF's online PDF tools handle it directly
+                in your browser — fast, free, and without installing anything.
+              </p>
             </div>
             <Link href="/pdf-tools" className="hidden text-sm font-semibold text-brand hover:underline sm:block">
               See all 25 tools →
@@ -159,6 +186,27 @@ export default function HomePage() {
               </li>
             ))}
           </ol>
+        </section>
+
+        {/* FAQ ----------------------------------------------------------- */}
+        <section aria-labelledby="home-faq" className="border-t border-ink/5 bg-white py-16">
+          <SeoJsonLd data={faqJsonLd(HOME_FAQ)} />
+          <div className="mx-auto max-w-2xl px-6">
+            <h2 id="home-faq" className="text-center font-display text-2xl font-semibold text-ink md:text-3xl">
+              Frequently asked questions
+            </h2>
+            <dl className="mt-8 space-y-6">
+              {HOME_FAQ.map((item) => (
+                <div key={item.question}>
+                  <dt className="font-display font-semibold text-ink">{item.question}</dt>
+                  <dd className="mt-1.5 text-sm leading-relaxed text-ink/60">{item.answer}</dd>
+                </div>
+              ))}
+            </dl>
+            <p className="mt-8 text-center text-sm text-ink/50">
+              More questions? Visit the full <Link href="/faq" className="font-medium text-brand hover:underline">FAQ page</Link>.
+            </p>
+          </div>
         </section>
 
         {/* FINAL CTA --------------------------------------------------- */}
