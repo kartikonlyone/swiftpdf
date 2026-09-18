@@ -165,6 +165,44 @@ prisma/         schema.prisma + seed.js
 
 ## Troubleshooting
 
+**Vercel build fails: "Failed to collect page data for /api/auth/[...nextauth]"**
+Classic Vercel + Prisma gotcha, not related to any of the auth logic itself.
+Root cause: `package.json` had no `postinstall` script, so Prisma's generated
+client was never created before the build ran. `lib/prisma.js` calls
+`new PrismaClient()` at module load time — when that module (pulled in by
+the NextAuth route via `lib/auth.js`) gets imported during Next.js's
+"collecting page data" step, an ungenerated client throws immediately,
+which Next.js reports as this generic wrapper error.
+
+Fixed: added `"postinstall": "prisma generate"` to `package.json` — Vercel
+runs `npm install` (which triggers `postinstall`) before `npm run build`,
+so the client always exists by build time.
+
+If you added `export const dynamic = 'force-dynamic'` to `app/layout.js`
+while debugging this, **remove it** — it wasn't the actual fix, and setting
+it on the root layout forces every single page in the app (blog posts, tool
+pages, everything) to skip static generation, which directly undoes the
+SEO/performance work this project was built for. It's fine to leave on the
+NextAuth route itself if you already added it there, but it isn't required.
+
+**Required environment variables on Vercel**
+`.env` on your local machine is never read by Vercel — every variable your
+app needs must also be added in the Vercel dashboard under
+**Project → Settings → Environment Variables** (for Production, and Preview
+if you use preview deployments). At minimum, for the app to build and run:
+- `DATABASE_URL` — must point to a database Vercel's servers can reach over
+  the internet (Neon, Supabase, RDS, etc.). A `localhost` Postgres URL from
+  your own machine will never work here.
+- `NEXTAUTH_URL` — set to your actual deployed URL, e.g.
+  `https://swiftpdf.vercel.app` (not `localhost`).
+- `NEXTAUTH_SECRET` — same long random string you use locally, or generate
+  a separate one for production.
+
+After adding/changing env vars on Vercel, you must trigger a new deployment
+for them to take effect — saving them alone doesn't redeploy.
+
+
+
 **No logout button anywhere**
 Real gap — `signOut()` was never called from any component. Fixed:
 - `components/LogoutButton.js` — reusable sign-out control.

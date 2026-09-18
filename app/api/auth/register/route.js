@@ -5,9 +5,6 @@ import { prisma } from "@/lib/prisma";
 import { emailStatus, sendVerificationEmail } from "@/services/email/resend";
 import { rateLimit, clientKeyFromRequest } from "@/lib/rateLimit";
 
-// Force dynamic rendering to prevent build-time static evaluation crashes
-export const dynamic = 'force-dynamic';
-
 const schema = z.object({
   name: z.string().min(1).max(100),
   email: z.string().email(),
