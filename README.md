@@ -165,6 +165,34 @@ prisma/         schema.prisma + seed.js
 
 ## Troubleshooting
 
+**Vercel build STILL fails at the same spot even with correct env vars set**
+If you've confirmed `DATABASE_URL` is set correctly for Production in Vercel
+and the build still crashes with the exact same
+`Failed to collect page data for /api/auth/[...nextauth]` /
+`PrismaClientInitializationError` error, the real fix is structural, not an
+env var problem: `lib/prisma.js` now constructs the PrismaClient **lazily**,
+via a `Proxy`, instead of at module import time.
+
+Why this matters: Next.js's build step imports every route module —
+including the NextAuth route — to "collect page data," and this happens
+during `next build` itself, before any real request exists. The old code
+ran `new PrismaClient()` the instant the module was imported, which
+validates `DATABASE_URL` immediately and throws if it can't see it. Some
+hosting setups (Vercel env vars marked "Sensitive," for example) withhold
+env vars from the build step and only inject them into the actual running
+function at request time — so the build crashed even though the variable
+was genuinely set correctly for runtime.
+
+The Proxy-based client sidesteps this entirely: importing `lib/prisma.js`
+now only creates a cheap placeholder object, and the real `PrismaClient()`
+— and its read of `DATABASE_URL` — is deferred until the first actual
+database query runs, which only ever happens at real request time, long
+after the build has finished. No other file in this project needed to
+change; every call site still does `prisma.user.findMany()` etc. exactly as
+before.
+
+
+
 **Vercel build fails: "Failed to collect page data for /api/auth/[...nextauth]"**
 Classic Vercel + Prisma gotcha, not related to any of the auth logic itself.
 Root cause: `package.json` had no `postinstall` script, so Prisma's generated
