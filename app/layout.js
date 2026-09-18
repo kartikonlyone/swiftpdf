@@ -34,7 +34,7 @@ export const metadata = {
     path: "/"
   }),
   verification: {
-    google: "google-site-verification=0XB_XVbbIP_WDQaFm2mnKXp-8oJ4YC_gwjcXa7ARRew",
+    google: "PG8HGjtCKzxAGHBSctLkyyfS47SoOEEmWOTfzvcoyPo",
   },
 };
 
