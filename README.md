@@ -176,7 +176,7 @@ external Google-side steps and paste the resulting values into `.env`.
 2. Under **Data Streams**, add a Web stream with your live URL. Copy the
    **Measurement ID** (looks like `G-XXXXXXXXXX`).
 3. In Vercel → Settings → Environment Variables, set
-   `NEXT_PUBLIC_GA4_MEASUREMENT_ID` to that value (Production + Preview).
+   `GA4_MEASUREMENT_ID` to that value (Production + Preview).
 4. Redeploy. `components/GoogleAnalytics.js` picks it up automatically and
    starts sending pageviews — no other code change needed.
 
@@ -186,7 +186,7 @@ external Google-side steps and paste the resulting values into `.env`.
 2. Choose the **HTML tag** verification method (not DNS) — it gives you a
    line like `<meta name="google-site-verification" content="XXXXX" />`.
 3. Copy just the `content="..."` value into Vercel's
-   `NEXT_PUBLIC_GSC_VERIFICATION` env var and redeploy. The tag is now
+   `GSC_VERIFICATION` env var and redeploy. The tag is now
    injected automatically via `app/layout.js`'s `metadata.verification`.
 4. Back in Search Console, click **Verify**.
 5. Once verified, submit your sitemap: Search Console → Sitemaps → enter
@@ -252,6 +252,36 @@ Console on Google's own site and only wanted visitor tracking to work.
       like Neon/Supabase have this built in — just confirm it's enabled).
 
 ## Troubleshooting
+
+**Vercel's "Remove the public framework prefix" warning won't let you save GA4/GSC vars**
+`GA4_MEASUREMENT_ID` and `GSC_VERIFICATION` no longer use the `NEXT_PUBLIC_`
+prefix — neither one actually needs it. Both are read inside Server
+Components (`components/GoogleAnalytics.js`, `app/layout.js`'s `metadata`
+export), which run only on the server; the value reaches the browser solely
+as the rendered `<script>`/`<meta>` tag itself, never through Next.js's
+client-JS-bundle inlining mechanism that `NEXT_PUBLIC_` exists for. Dropping
+the prefix means Vercel never shows the "exposed to the browser" warning in
+the first place — add them as plain env vars named exactly
+`GA4_MEASUREMENT_ID` and `GSC_VERIFICATION`.
+
+**SEO audit tool flags: "Canonical tag contains a link with 0 status code," "Accessible index page," etc.**
+These were downstream symptoms of the canonical-URL bug — the crawler tried
+to fetch the canonical URL (`localhost:3000`, unreachable from outside your
+own machine) and got no response at all. Once `NEXT_PUBLIC_SITE_URL` is set
+correctly in Vercel (see below) and you redeploy, re-run the audit; these
+should clear on their own. Also added redirects for `/index.html` and
+`/index.php` → `/`, since some audit tools specifically check for those.
+
+**`lib/seo.js`'s fallback URL**
+Changed the hardcoded fallback from `http://localhost:3000` to
+`https://swiftpdf-two.vercel.app` — if `NEXT_PUBLIC_SITE_URL` is ever unset
+in a future deploy, metadata now degrades to a real, working URL instead of
+localhost. This is a safety net only: **you still need
+`NEXT_PUBLIC_SITE_URL=https://swiftpdf-two.vercel.app`
+(or your final custom domain, once you have one) set in Vercel's actual
+environment variables** — a code fallback can't substitute for that.
+
+
 
 **SEO audit: canonical URL points at localhost:3000 in production**
 Two-part fix, both applied:

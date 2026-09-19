@@ -14,6 +14,15 @@ const nextConfig = {
         : [])
     ]
   },
+  async redirects() {
+    return [
+      // Legacy-style index URLs — this app never generates .html/.php
+      // files, but some SEO crawlers specifically check that these paths
+      // don't 404, and instead point back at the real homepage.
+      { source: "/index.html", destination: "/", permanent: true },
+      { source: "/index.php", destination: "/", permanent: true }
+    ];
+  },
   async headers() {
     return [
       {

@@ -41,8 +41,13 @@ export const metadata = {
       "Merge, split, compress, convert, edit, sign and manage PDF files online with SwiftPDF.",
     path: "/"
   }),
-  verification: process.env.NEXT_PUBLIC_GSC_VERIFICATION
-    ? { google: process.env.NEXT_PUBLIC_GSC_VERIFICATION }
+  // No NEXT_PUBLIC_ prefix needed — metadata exports are processed entirely
+  // server-side by Next.js; the value only ever reaches the browser as the
+  // rendered <meta> tag itself (which is the whole point of a site
+  // verification tag), never through the client JS bundle. Using a plain
+  // env var name avoids Vercel's "exposed to the browser" prefix warning.
+  verification: process.env.GSC_VERIFICATION
+    ? { google: process.env.GSC_VERIFICATION }
     : undefined
 };
 
